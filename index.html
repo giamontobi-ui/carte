@@ -838,6 +838,9 @@
       dlg.className = "panel";
       const pre = document.createElement("pre");
       pre.textContent = text;
+      pre.style.whiteSpace = "pre-wrap";
+      pre.style.maxHeight = "50vh";
+      pre.style.overflowY = "auto";
       const closeBtn = document.createElement("button");
       closeBtn.className = "btn";
       closeBtn.textContent = "Chiudi";
@@ -854,6 +857,7 @@
       dlg.style.right = "16px";
       dlg.style.bottom = "16px";
       dlg.style.maxWidth = "560px";
+      dlg.style.maxHeight = "70vh";
       dlg.style.zIndex = "100";
     }
 
