@@ -659,7 +659,7 @@
       const { wl, playerEveningWins, playerGamePoints, perGamePlayers } = computePairTotalsByYear(year);
       
       // Salvo i dati globalmente per il report
-      window.currentStatsData = { year, playerEveningWins, playerGamePoints };
+      window.currentStatsData = { year, playerEveningWins, playerGamePoints, perGamePlayers };
       
       const wlArr = Object.entries(wl).map(([key, obj]) => ({ key, ...obj }))
         .sort((a,b) => (b.win - a.win) || (a.loss - b.loss));
@@ -764,25 +764,33 @@
 
     function openStatsReportModal() {
       if (!window.currentStatsData) return;
-      const { year, playerEveningWins, playerGamePoints } = window.currentStatsData;
-      
+      const { year, playerEveningWins, playerGamePoints, perGamePlayers } = window.currentStatsData;
       const lines = [];
       lines.push(`📊 Classifiche ${year} 📊`);
       lines.push("");
-      
       lines.push("🏆 Vincitori Serate");
-      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts }))
-        .sort((a,b) => b.pts - a.pts);
+      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
       if (pevRows.length === 0) lines.push("- Nessun dato");
       else pevRows.forEach((row, i) => lines.push(`${i+1}. ${row.player}: ${row.pts}`));
       lines.push("");
-
       lines.push("🎮 Giochi Totali Vinti");
-      const pgpRows = Object.entries(playerGamePoints).map(([player, pts]) => ({ player, pts }))
-        .sort((a,b) => b.pts - a.pts);
+      const pgpRows = Object.entries(playerGamePoints).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
       if (pgpRows.length === 0) lines.push("- Nessun dato");
       else pgpRows.forEach((row, i) => lines.push(`${i+1}. ${row.player}: ${row.pts}`));
-      
+      lines.push("");
+      lines.push("🎯 Singoli Giochi (Top 4)");
+      const allGameNames = [...BASE_GAMES, ...ALT_GAMES];
+      allGameNames.forEach(name => {
+        const rows = Object.entries(perGamePlayers[name] || {}).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
+        lines.push(`- ${name}`);
+        if (rows.length === 0) {
+          lines.push("  Nessun dato");
+        } else {
+          rows.slice(0,4).forEach((row, i) => {
+            lines.push(`  ${i+1}. ${row.player}: ${row.pts}`);
+          });
+        }
+      });
       const text = lines.join("\n");
       showReportDialog(text);
     }
