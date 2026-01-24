@@ -311,6 +311,14 @@
 
       <h3>Classifiche per singolo gioco (giocatori)</h3>
       <div id="per-game-stats" class="list"></div>
+
+      <h3>Cronologia Punteggi</h3>
+      <div style="overflow-x:auto">
+        <table class="table" id="table-history"></table>
+      </div>
+
+      <h3>Statistica Punteggi</h3>
+      <table class="table" id="table-scores" style="max-width:300px"></table>
       
       <div class="divider"></div>
       <div class="row" style="margin-top:20px">
@@ -654,12 +662,107 @@
       });
       return { totals, wl, eveningWins, perGame, playerEveningWins, playerGamePoints, perGamePlayers };
     }
+
+    function renderHistoryTable(year) {
+      const list = filterByYear(loadSerate(), year).sort((a,b) => a.date.localeCompare(b.date));
+      const table = document.getElementById("table-history");
+      table.innerHTML = "";
+      
+      const thead = document.createElement("thead");
+      let headHtml = "<tr><th>Data</th>";
+      PLAYERS.forEach(p => headHtml += `<th style="text-align:center">${p}</th>`);
+      headHtml += "</tr>";
+      thead.innerHTML = headHtml;
+      
+      const tbody = document.createElement("tbody");
+      list.forEach(s => {
+        const c = countPointsForSerata(s);
+        const w = eveningWinner(s);
+        const tr = document.createElement("tr");
+        
+        const tdDate = document.createElement("td");
+        tdDate.className = "mono";
+        const d = parseDateInput(s.date);
+        tdDate.textContent = d ? d.toLocaleDateString("it-IT") : s.date;
+        tr.appendChild(tdDate);
+
+        PLAYERS.forEach(p => {
+          const td = document.createElement("td");
+          td.style.textAlign = "center";
+          td.style.fontWeight = "bold";
+          
+          let points = 0;
+          let isWinner = false;
+          let isLoser = false;
+          
+          if (s.pairA.includes(p)) {
+            points = c.A;
+            if (w === "A") isWinner = true;
+            if (w === "B") isLoser = true;
+          } else if (s.pairB.includes(p)) {
+            points = c.B;
+            if (w === "B") isWinner = true;
+            if (w === "A") isLoser = true;
+          }
+          
+          td.textContent = points;
+          if (isWinner) {
+            td.style.backgroundColor = "rgba(34, 197, 94, 0.2)";
+            td.style.color = "#166534"; // Darker green for text readability
+          } else if (isLoser) {
+            td.style.backgroundColor = "rgba(239, 68, 68, 0.2)";
+            td.style.color = "#991b1b"; // Darker red
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(thead);
+      table.appendChild(tbody);
+    }
+
+    function renderScoreStats(year) {
+      const list = filterByYear(loadSerate(), year);
+      const counts = { "7-0": 0, "6-1": 0, "5-2": 0, "4-3": 0 };
+      
+      list.forEach(s => {
+        const c = countPointsForSerata(s);
+        const max = Math.max(c.A, c.B);
+        const min = Math.min(c.A, c.B);
+        const key = `${max}-${min}`;
+        if (counts[key] !== undefined) counts[key]++;
+      });
+      
+      const table = document.getElementById("table-scores");
+      table.innerHTML = "";
+      const thead = document.createElement("thead");
+      thead.innerHTML = "<tr><th>Punteggio</th><th>N. Serate</th></tr>";
+      const tbody = document.createElement("tbody");
+      Object.keys(counts).forEach(k => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${k}</td><td>${counts[k]}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(thead);
+      table.appendChild(tbody);
+    }
+
     function renderStatsTables() {
       const year = Number(document.getElementById("year-select").value);
       const { wl, playerEveningWins, playerGamePoints, perGamePlayers } = computePairTotalsByYear(year);
       
+      const sessionsList = filterByYear(loadSerate(), year).sort((a,b) => a.date.localeCompare(b.date));
+      const scoreCounts = { "7-0": 0, "6-1": 0, "5-2": 0, "4-3": 0 };
+      sessionsList.forEach(s => {
+         const c = countPointsForSerata(s);
+         const max = Math.max(c.A, c.B);
+         const min = Math.min(c.A, c.B);
+         const key = `${max}-${min}`;
+         if (scoreCounts[key] !== undefined) scoreCounts[key]++;
+      });
+
       // Salvo i dati globalmente per il report
-      window.currentStatsData = { year, playerEveningWins, playerGamePoints, perGamePlayers };
+      window.currentStatsData = { year, playerEveningWins, playerGamePoints, perGamePlayers, sessionsList, scoreCounts };
       
       const wlArr = Object.entries(wl).map(([key, obj]) => ({ key, ...obj }))
         .sort((a,b) => (b.win - a.win) || (a.loss - b.loss));
@@ -760,11 +863,14 @@
         panel.appendChild(table);
         perGameWrap.appendChild(panel);
       });
+      
+      renderHistoryTable(year);
+      renderScoreStats(year);
     }
 
     function openStatsReportModal() {
       if (!window.currentStatsData) return;
-      const { year, playerEveningWins, playerGamePoints, perGamePlayers } = window.currentStatsData;
+      const { year, playerEveningWins, playerGamePoints, perGamePlayers, sessionsList, scoreCounts } = window.currentStatsData;
       const lines = [];
       lines.push(`📊 Classifiche ${year} 📊`);
       lines.push("");
@@ -791,6 +897,37 @@
           });
         }
       });
+      lines.push("");
+      
+      lines.push("📅 Cronologia Punteggi");
+      if (!sessionsList || sessionsList.length === 0) {
+        lines.push("- Nessun dato");
+      } else {
+        sessionsList.forEach(s => {
+          const d = parseDateInput(s.date);
+          const dateStr = d ? d.toLocaleDateString("it-IT").slice(0,5) : s.date;
+          const c = countPointsForSerata(s);
+          const w = eveningWinner(s);
+          
+          const parts = PLAYERS.map(p => {
+            let pts = 0;
+            let isWin = false;
+            if (s.pairA.includes(p)) { pts = c.A; if (w === "A") isWin = true; }
+            else if (s.pairB.includes(p)) { pts = c.B; if (w === "B") isWin = true; }
+            return isWin ? `*${p}(${pts})*` : `${p}(${pts})`;
+          });
+          lines.push(`${dateStr}: ${parts.join(" ")}`);
+        });
+      }
+      lines.push("");
+
+      lines.push("📈 Statistica Punteggi");
+      if (scoreCounts) {
+        Object.keys(scoreCounts).forEach(k => {
+          lines.push(`${k}: ${scoreCounts[k]}`);
+        });
+      }
+
       const text = lines.join("\n");
       showReportDialog(text);
     }
