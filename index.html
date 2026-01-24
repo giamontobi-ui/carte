@@ -265,7 +265,7 @@
         <h2>Serate</h2>
         <div class="row">
           <span class="badge" id="count-serate">0 serate</span>
-          <button class="btn primary" data-tab="new">+ Aggiungi serata</button>
+          <button class="btn primary" id="btn-add-serata-home">+ Aggiungi serata</button>
         </div>
       </div>
       <div id="serate-list" class="list"></div>
@@ -367,9 +367,11 @@
     tabs.forEach(t => {
       t.addEventListener("click", () => setActiveTab(t.dataset.tab));
     });
-    document.querySelectorAll('[data-tab="new"]').forEach(el => {
-      el.addEventListener("click", () => setActiveTab("new"));
-    });
+    // Gestione esplicita del bottone "Aggiungi serata" nella home
+    const btnAddHome = document.getElementById("btn-add-serata-home");
+    if (btnAddHome) {
+      btnAddHome.addEventListener("click", () => setActiveTab("new"));
+    }
 
     function loadSerate() {
       try {
