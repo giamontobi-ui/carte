@@ -232,6 +232,21 @@
     }
     @media (max-width: 780px) {
       .item { grid-template-columns: 1fr; }
+      
+      /* Ottimizzazione tabelle per mobile */
+      .table th, .table td {
+        padding: 4px 2px;
+        font-size: 13px;
+        text-align: center;
+      }
+      .table th {
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .table td:first-child, .table th:first-child {
+        text-align: left;
+        padding-left: 4px;
+      }
     }
   </style>
 </head>
@@ -683,7 +698,8 @@
         const tdDate = document.createElement("td");
         tdDate.className = "mono";
         const d = parseDateInput(s.date);
-        tdDate.textContent = d ? d.toLocaleDateString("it-IT") : s.date;
+        tdDate.textContent = d ? d.toLocaleDateString("it-IT", {day: "2-digit", month: "2-digit"}) : s.date;
+        if (d) tdDate.title = d.toLocaleDateString("it-IT"); // Tooltip con data completa
         tr.appendChild(tdDate);
 
         PLAYERS.forEach(p => {
