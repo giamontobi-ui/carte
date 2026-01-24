@@ -929,10 +929,102 @@
       }
 
       const text = lines.join("\n");
-      showReportDialog(text);
+      
+      // Costruisco la versione visuale (HTML)
+      const visualContainer = document.createElement("div");
+      
+      const hTitle = document.createElement("h2");
+      hTitle.textContent = `📊 Classifiche ${year}`;
+      hTitle.style.textAlign = "center";
+      visualContainer.appendChild(hTitle);
+
+      const hWin = document.createElement("h3");
+      hWin.textContent = "🏆 Vincitori Serate";
+      visualContainer.appendChild(hWin);
+      const ulWin = document.createElement("ul");
+      if (pevRows.length === 0) ulWin.innerHTML = "<li>Nessun dato</li>";
+      else pevRows.forEach((row, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i+1}. ${row.player}: ${row.pts}`;
+        ulWin.appendChild(li);
+      });
+      visualContainer.appendChild(ulWin);
+
+      const hGames = document.createElement("h3");
+      hGames.textContent = "🎮 Giochi Totali Vinti";
+      visualContainer.appendChild(hGames);
+      const ulGames = document.createElement("ul");
+      if (pgpRows.length === 0) ulGames.innerHTML = "<li>Nessun dato</li>";
+      else pgpRows.forEach((row, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i+1}. ${row.player}: ${row.pts}`;
+        ulGames.appendChild(li);
+      });
+      visualContainer.appendChild(ulGames);
+
+      const hSingle = document.createElement("h3");
+      hSingle.textContent = "🎯 Singoli Giochi (Top 4)";
+      visualContainer.appendChild(hSingle);
+      allGameNames.forEach(name => {
+        const rows = Object.entries(perGamePlayers[name] || {}).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
+        const p = document.createElement("div");
+        p.style.fontWeight = "bold";
+        p.style.marginTop = "8px";
+        p.textContent = name;
+        visualContainer.appendChild(p);
+        const ul = document.createElement("ul");
+        ul.style.marginTop = "4px";
+        ul.style.marginBottom = "8px";
+        if (rows.length === 0) {
+          ul.innerHTML = "<li>Nessun dato</li>";
+        } else {
+          rows.slice(0,4).forEach((row, i) => {
+            const li = document.createElement("li");
+            li.textContent = `${i+1}. ${row.player}: ${row.pts}`;
+            ul.appendChild(li);
+          });
+        }
+        visualContainer.appendChild(ul);
+      });
+
+      const hHist = document.createElement("h3");
+      hHist.textContent = "📅 Cronologia Punteggi";
+      visualContainer.appendChild(hHist);
+      
+      // Clono la tabella cronologia esistente
+      const sourceTable = document.getElementById("table-history");
+      if (sourceTable && sourceTable.rows.length > 0) {
+        const tableWrap = document.createElement("div");
+        tableWrap.style.overflowX = "auto";
+        tableWrap.style.marginBottom = "16px";
+        const clonedTable = sourceTable.cloneNode(true);
+        clonedTable.style.width = "100%";
+        clonedTable.style.fontSize = "14px";
+        tableWrap.appendChild(clonedTable);
+        visualContainer.appendChild(tableWrap);
+      } else {
+        const p = document.createElement("p");
+        p.textContent = "Nessun dato";
+        visualContainer.appendChild(p);
+      }
+
+      const hStats = document.createElement("h3");
+      hStats.textContent = "📈 Statistica Punteggi";
+      visualContainer.appendChild(hStats);
+      const ulStats = document.createElement("ul");
+      if (scoreCounts) {
+        Object.keys(scoreCounts).forEach(k => {
+          const li = document.createElement("li");
+          li.textContent = `${k}: ${scoreCounts[k]}`;
+          ulStats.appendChild(li);
+        });
+      }
+      visualContainer.appendChild(ulStats);
+
+      showReportDialog(visualContainer, text);
     }
 
-    function showReportDialog(text) {
+    function showReportDialog(content, textForClipboard) {
       const actions = document.createElement("div");
       actions.className = "row";
       const copyBtn = document.createElement("button");
@@ -942,7 +1034,7 @@
         function legacyCopy() {
           return new Promise((resolve, reject) => {
             const ta = document.createElement("textarea");
-            ta.value = text;
+            ta.value = textForClipboard;
             ta.style.position = "fixed";
             ta.style.top = "-1000px";
             document.body.appendChild(ta);
@@ -959,9 +1051,9 @@
           });
         }
         const canClipboard = !!(navigator.clipboard && navigator.clipboard.writeText);
-        const p = canClipboard ? navigator.clipboard.writeText(text) : legacyCopy();
+        const p = canClipboard ? navigator.clipboard.writeText(textForClipboard) : legacyCopy();
         p.then(() => {
-          alert("Testo copiato");
+          alert("Testo copiato (la tabella colorata non può essere copiata come testo)");
         }).catch(() => {
           alert("Impossibile copiare il testo");
         });
@@ -970,21 +1062,43 @@
       waBtn.className = "btn primary";
       waBtn.textContent = "Apri WhatsApp Web";
       waBtn.target = "_blank";
-      waBtn.href = "https://api.whatsapp.com/send?text=" + encodeURIComponent(text);
+      waBtn.href = "https://api.whatsapp.com/send?text=" + encodeURIComponent(textForClipboard);
       const dlg = document.createElement("div");
       dlg.className = "panel";
-      const pre = document.createElement("pre");
-      pre.textContent = text;
-      pre.style.whiteSpace = "pre-wrap";
-      pre.style.maxHeight = "50vh";
-      pre.style.overflowY = "auto";
+      
+      const contentBox = document.createElement("div");
+      contentBox.style.maxHeight = "60vh";
+      contentBox.style.overflowY = "auto";
+      contentBox.style.background = "#0b1528";
+      contentBox.style.padding = "10px";
+      contentBox.style.borderRadius = "8px";
+      contentBox.style.marginBottom = "10px";
+      
+      if (typeof content === "string") {
+        const pre = document.createElement("pre");
+        pre.textContent = content;
+        pre.style.whiteSpace = "pre-wrap";
+        contentBox.appendChild(pre);
+      } else {
+        contentBox.appendChild(content);
+      }
+
+      const hint = document.createElement("div");
+      hint.className = "muted";
+      hint.style.fontSize = "12px";
+      hint.style.marginBottom = "10px";
+      hint.style.fontStyle = "italic";
+      hint.textContent = "Nota: Per condividere la tabella colorata, fai uno screenshot di questa finestra. I pulsanti sotto copiano solo il testo.";
+
       const closeBtn = document.createElement("button");
       closeBtn.className = "btn";
       closeBtn.textContent = "Chiudi";
       closeBtn.onclick = () => {
         dlg.remove();
       };
-      dlg.appendChild(pre);
+      
+      dlg.appendChild(contentBox);
+      dlg.appendChild(hint);
       dlg.appendChild(actions);
       actions.appendChild(copyBtn);
       actions.appendChild(waBtn);
@@ -994,7 +1108,11 @@
       dlg.style.right = "16px";
       dlg.style.bottom = "16px";
       dlg.style.maxWidth = "560px";
-      dlg.style.maxHeight = "70vh";
+      dlg.style.maxHeight = "90vh";
+      dlg.style.zIndex = "100";
+      dlg.style.boxShadow = "0 0 20px rgba(0,0,0,0.5)";
+      dlg.style.border = "1px solid var(--accent2)";
+    }
       dlg.style.zIndex = "100";
     }
 
