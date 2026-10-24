@@ -174,10 +174,17 @@
       </div>
       <div id="serate-list" class="list"></div>
       <div id="serate-empty" class="empty" style="display:none">Nessuna serata registrata</div>
+      <div class="divider"></div>
+      <h3>Esportazione dati</h3>
+      <p class="muted" style="font-size:13px">Esporta le serate salvate su questo dispositivo. Il JSON è un backup completo; il CSV si può aprire con Excel.</p>
+      <div class="row">
+        <button class="btn success" id="btn-export-json">Esporta backup JSON</button>
+        <button class="btn" id="btn-export-csv">Esporta CSV per Excel</button>
+      </div>
     </section>
 
     <section id="new" class="panel" style="display:none">
-      <h2>Nuova Serata</h2>
+      <h2 id="new-section-title">Nuova Serata</h2>
       <div class="grid">
         <div class="col-6">
           <div class="field">
@@ -205,8 +212,10 @@
       <div id="games-form" class="list"></div>
       <div class="row" style="margin-top:12px">
         <button class="btn success" id="btn-save" disabled>Salva serata</button>
+        <button class="btn" id="btn-cancel-edit" style="display:none">Annulla</button>
         <span id="save-status" class="muted"></span>
       </div>
+      <div class="muted" style="font-size:13px;margin-top:8px">Puoi salvare la serata anche lasciando alcuni giochi "Da definire". La vittoria della serata sarà conteggiata solo quando tutti i giochi avranno un vincitore.</div>
     </section>
 
     <section id="stats" class="panel" style="display:none">
@@ -269,12 +278,15 @@
       if (id === "stats") renderStats();
     }
     tabs.forEach(t => {
-      t.addEventListener("click", () => setActiveTab(t.dataset.tab));
+      t.addEventListener("click", () => {
+        if (t.dataset.tab === "new") startNewSerata();
+        else setActiveTab(t.dataset.tab);
+      });
     });
     // Gestione esplicita del bottone "Aggiungi serata" nella home
     const btnAddHome = document.getElementById("btn-add-serata-home");
     if (btnAddHome) {
-      btnAddHome.addEventListener("click", () => setActiveTab("new"));
+      btnAddHome.addEventListener("click", startNewSerata);
     }
 
     function loadSerate() {
@@ -312,13 +324,18 @@
     }
     function countPointsForSerata(serata) {
       const counts = { A: 0, B: 0 };
-      serata.games.forEach(g => {
+      (Array.isArray(serata.games) ? serata.games : []).forEach(g => {
         if (g.winner === "A") counts.A += 1;
         if (g.winner === "B") counts.B += 1;
       });
       return counts;
     }
+    function isSerataComplete(serata) {
+      return Array.isArray(serata.games) && serata.games.length > 0 &&
+        serata.games.every(g => g.winner === "A" || g.winner === "B");
+    }
     function eveningWinner(serata) {
+      if (!isSerataComplete(serata)) return null;
       const c = countPointsForSerata(serata);
       if (c.A > c.B) return "A";
       if (c.B > c.A) return "B";
@@ -330,8 +347,8 @@
     }
 
     function renderHome() {
-      const list = loadSerate().sort((a,b) => b.date.localeCompare(a.date));
-      document.getElementById("count-serate").textContent = `${list.length} serate`;
+      const list = loadSerate().sort((a, b) => b.date.localeCompare(a.date));
+      document.getElementById("count-serate").textContent = list.length + " serate";
       const container = document.getElementById("serate-list");
       const empty = document.getElementById("serate-empty");
       container.innerHTML = "";
@@ -346,21 +363,46 @@
         const d = parseDateInput(serata.date);
         dateEl.textContent = d ? d.toLocaleDateString("it-IT") : serata.date;
         const pairsEl = document.createElement("div");
-        pairsEl.innerHTML = `
-          <div class="row">
-            <span class="chip">${pairLabel(serata.pairA)}</span>
-            <span class="muted">(${c.A})</span>
-          </div>
-          <div class="row">
-            <span class="chip">${pairLabel(serata.pairB)}</span>
-            <span class="muted">(${c.B})</span>
-          </div>
-        `;
+        const pairARow = document.createElement("div");
+        pairARow.className = "row";
+        const pairAChip = document.createElement("span");
+        pairAChip.className = "chip";
+        pairAChip.textContent = pairLabel(serata.pairA);
+        const pointsA = document.createElement("span");
+        pointsA.className = "muted";
+        pointsA.textContent = "(" + c.A + ")";
+        pairARow.appendChild(pairAChip);
+        pairARow.appendChild(pointsA);
+        const pairBRow = document.createElement("div");
+        pairBRow.className = "row";
+        const pairBChip = document.createElement("span");
+        pairBChip.className = "chip";
+        pairBChip.textContent = pairLabel(serata.pairB);
+        const pointsB = document.createElement("span");
+        pointsB.className = "muted";
+        pointsB.textContent = "(" + c.B + ")";
+        pairBRow.appendChild(pairBChip);
+        pairBRow.appendChild(pointsB);
+        pairsEl.appendChild(pairARow);
+        pairsEl.appendChild(pairBRow);
         const winEl = document.createElement("div");
-        winEl.innerHTML = winner
-          ? `<span class="winner">🏆 ${winner === "A" ? pairLabel(serata.pairA) : pairLabel(serata.pairB)}</span>`
-          : `<span class="badge">Pareggio</span>`;
+        if (winner) {
+          const winBadge = document.createElement("span");
+          winBadge.className = "winner";
+          winBadge.textContent = "🏆 " + (winner === "A" ? pairLabel(serata.pairA) : pairLabel(serata.pairB));
+          winEl.appendChild(winBadge);
+        } else {
+          const statusBadge = document.createElement("span");
+          statusBadge.className = "badge";
+          statusBadge.textContent = isSerataComplete(serata) ? "Pareggio" : "Da completare";
+          winEl.appendChild(statusBadge);
+        }
         const actions = document.createElement("div");
+        actions.className = "row";
+        const btnEdit = document.createElement("button");
+        btnEdit.className = "btn primary";
+        btnEdit.textContent = "Modifica";
+        btnEdit.addEventListener("click", () => openEditSerata(serata));
         const btnReport = document.createElement("button");
         btnReport.className = "btn";
         btnReport.textContent = "Report WhatsApp";
@@ -375,6 +417,7 @@
           saveSerate(all);
           renderHome();
         });
+        actions.appendChild(btnEdit);
         actions.appendChild(btnReport);
         actions.appendChild(btnDelete);
         root.appendChild(dateEl);
@@ -387,15 +430,64 @@
 
     let currentAlt = ALT_GAMES[0];
     let currentPairs = { A: null, B: null };
+    let currentWinners = {};
+    let editingSerataId = null;
+
+    function startNewSerata() {
+      editingSerataId = null;
+      currentAlt = ALT_GAMES[0];
+      currentPairs = { A: null, B: null };
+      currentWinners = {};
+      document.getElementById("date-input").value = formatDateISO(new Date());
+      document.getElementById("pairA").textContent = "";
+      document.getElementById("pairB").textContent = "";
+      setActiveTab("new");
+    }
+
+    function openEditSerata(serata) {
+      editingSerataId = serata.id;
+      currentPairs = { A: [...serata.pairA], B: [...serata.pairB] };
+      const savedAlt = (serata.games || []).find(g => ALT_GAMES.includes(g.name));
+      currentAlt = savedAlt ? savedAlt.name : ALT_GAMES[0];
+      currentWinners = {};
+      (serata.games || []).forEach(g => {
+        currentWinners[g.name] = (g.winner === "A" || g.winner === "B") ? g.winner : null;
+      });
+      setActiveTab("new");
+    }
+
+    function cancelEditSerata() {
+      editingSerataId = null;
+      currentPairs = { A: null, B: null };
+      currentWinners = {};
+      currentAlt = ALT_GAMES[0];
+      setActiveTab("home");
+    }
+
     function renderNew() {
+      const editingSerata = editingSerataId
+        ? loadSerate().find(s => s.id === editingSerataId)
+        : null;
       const dInput = document.getElementById("date-input");
-      if (!dInput.value) dInput.value = formatDateISO(new Date());
-      document.getElementById("btn-shuffle").onclick = () => {
+      if (editingSerata) dInput.value = editingSerata.date;
+      else if (!dInput.value) dInput.value = formatDateISO(new Date());
+      document.getElementById("new-section-title").textContent = editingSerata ? "Modifica Serata" : "Nuova Serata";
+      const saveButton = document.getElementById("btn-save");
+      saveButton.textContent = editingSerata ? "Salva modifiche" : "Salva serata";
+      document.getElementById("btn-cancel-edit").style.display = editingSerata ? "" : "none";
+      document.getElementById("btn-cancel-edit").onclick = cancelEditSerata;
+      document.getElementById("pairA").textContent = currentPairs.A ? pairLabel(currentPairs.A) : "";
+      document.getElementById("pairB").textContent = currentPairs.B ? pairLabel(currentPairs.B) : "";
+      const shuffleButton = document.getElementById("btn-shuffle");
+      shuffleButton.disabled = !!editingSerata;
+      shuffleButton.textContent = editingSerata ? "Coppie archiviate" : "Genera coppie casuali";
+      shuffleButton.onclick = () => {
         const shuffled = [...PLAYERS].sort(() => Math.random() - 0.5);
         currentPairs.A = [shuffled[0], shuffled[1]];
         currentPairs.B = [shuffled[2], shuffled[3]];
         document.getElementById("pairA").textContent = pairLabel(currentPairs.A);
         document.getElementById("pairB").textContent = pairLabel(currentPairs.B);
+        renderGamesRadios();
         validateCanSave();
       };
       const form = document.getElementById("games-form");
@@ -421,6 +513,7 @@
       form.appendChild(altWrap);
       const radiosWrap = document.createElement("div");
       form.appendChild(radiosWrap);
+
       function renderGamesRadios() {
         radiosWrap.innerHTML = "";
         const gameNames = normalizeGamesSelection(currentAlt);
@@ -431,74 +524,91 @@
           gameTitle.textContent = name;
           const radios = document.createElement("div");
           radios.className = "radio-group";
-          const aId = `g_${name}_A`;
-          const bId = `g_${name}_B`;
-          const aLabel = document.createElement("label");
-          const aInput = document.createElement("input");
-          aInput.type = "radio";
-          aInput.name = `g_${name}`;
-          aInput.id = aId;
-          aInput.value = "A";
-          aLabel.htmlFor = aId;
-          aLabel.textContent = pairLabel(currentPairs.A || ["Coppia A","",""].slice(0,2));
-          const bLabel = document.createElement("label");
-          const bInput = document.createElement("input");
-          bInput.type = "radio";
-          bInput.name = `g_${name}`;
-          bInput.id = bId;
-          bInput.value = "B";
-          bLabel.htmlFor = bId;
-          bLabel.textContent = pairLabel(currentPairs.B || ["Coppia B","",""].slice(0,2));
-          [aInput, bInput].forEach(el => el.addEventListener("change", validateCanSave));
-          const aWrap = document.createElement("div");
-          aWrap.className = "row";
-          aWrap.appendChild(aInput);
-          aWrap.appendChild(aLabel);
-          const bWrap = document.createElement("div");
-          bWrap.className = "row";
-          bWrap.appendChild(bInput);
-          bWrap.appendChild(bLabel);
-          radios.appendChild(aWrap);
-          radios.appendChild(bWrap);
+          const options = [
+            { value: "A", id: "g_" + name + "_A", label: pairLabel(currentPairs.A || ["Coppia A", ""]) },
+            { value: "B", id: "g_" + name + "_B", label: pairLabel(currentPairs.B || ["Coppia B", ""]) },
+            { value: "", id: "g_" + name + "_NONE", label: "Da definire" }
+          ];
+          options.forEach(option => {
+            const wrap = document.createElement("div");
+            wrap.className = "row";
+            const input = document.createElement("input");
+            input.type = "radio";
+            input.name = "g_" + name;
+            input.id = option.id;
+            input.value = option.value;
+            input.checked = (currentWinners[name] || "") === option.value;
+            input.addEventListener("change", () => {
+              currentWinners[name] = option.value || null;
+              validateCanSave();
+            });
+            const label = document.createElement("label");
+            label.htmlFor = option.id;
+            label.textContent = option.label;
+            wrap.appendChild(input);
+            wrap.appendChild(label);
+            radios.appendChild(wrap);
+          });
           row.appendChild(gameTitle);
           row.appendChild(radios);
           radiosWrap.appendChild(row);
         });
       }
       renderGamesRadios();
-      document.getElementById("btn-save").onclick = saveSerataFromForm;
+      saveButton.onclick = saveSerataFromForm;
+      dInput.onchange = validateCanSave;
       validateCanSave();
     }
+
     function validateCanSave() {
       const dateVal = document.getElementById("date-input").value;
       const hasDate = !!parseDateInput(dateVal);
       const hasPairs = !!(currentPairs.A && currentPairs.B);
-      const gameNames = normalizeGamesSelection(currentAlt);
-      const allSelected = gameNames.every(name => {
-        const sel = document.querySelector(`input[name="g_${name}"]:checked`);
-        return !!sel;
-      });
-      document.getElementById("btn-save").disabled = !(hasDate && hasPairs && allSelected);
+      document.getElementById("btn-save").disabled = !(hasDate && hasPairs);
       document.getElementById("save-status").textContent = !(hasDate && hasPairs)
-        ? "Seleziona data e genera coppie"
-        : (!allSelected ? "Seleziona i vincitori di tutti i giochi" : "");
+        ? "Seleziona una data e genera o verifica le coppie"
+        : "Pronto per il salvataggio: i giochi senza vincitore resteranno Da definire";
     }
+
     function saveSerataFromForm() {
       const dateVal = document.getElementById("date-input").value;
-      const games = normalizeGamesSelection(currentAlt).map(name => {
-        const sel = document.querySelector(`input[name="g_${name}"]:checked`);
-        return { name, winner: sel ? sel.value : null };
-      });
-      const serata = {
-        id: uid(),
-        date: dateVal,
-        pairA: currentPairs.A,
-        pairB: currentPairs.B,
-        games
-      };
+      if (!parseDateInput(dateVal) || !currentPairs.A || !currentPairs.B) {
+        validateCanSave();
+        return;
+      }
+      const games = normalizeGamesSelection(currentAlt).map(name => ({
+        name,
+        winner: currentWinners[name] === "A" || currentWinners[name] === "B" ? currentWinners[name] : null
+      }));
       const all = loadSerate();
-      all.push(serata);
+      if (editingSerataId) {
+        const index = all.findIndex(s => s.id === editingSerataId);
+        if (index === -1) {
+          alert("La serata da modificare non è più presente in archivio.");
+          cancelEditSerata();
+          return;
+        }
+        all[index] = {
+          ...all[index],
+          date: dateVal,
+          pairA: [...currentPairs.A],
+          pairB: [...currentPairs.B],
+          games
+        };
+      } else {
+        all.push({
+          id: uid(),
+          date: dateVal,
+          pairA: [...currentPairs.A],
+          pairB: [...currentPairs.B],
+          games
+        });
+      }
       saveSerate(all);
+      editingSerataId = null;
+      currentPairs = { A: null, B: null };
+      currentWinners = {};
+      currentAlt = ALT_GAMES[0];
       setActiveTab("home");
     }
 
@@ -690,20 +800,20 @@
       const pevTable = document.getElementById("table-player-evening");
       pevTable.innerHTML = "";
       const pevHead = document.createElement("thead");
-      pevHead.innerHTML = "<tr><th>Pos.</th><th>Giocatore</th><th>Punti serate</th></tr>";
+      pevHead.innerHTML = "<tr><th>Pos.</th><th>Giocatore</th><th>Punti serate</th><th>Giochi vinti</th></tr>";
       const pevBody = document.createElement("tbody");
-      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts }))
-        .sort((a,b) => b.pts - a.pts);
+      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts, gamesWon: playerGamePoints[player] || 0 }))
+        .sort((a,b) => (b.pts - a.pts) || (b.gamesWon - a.gamesWon));
       pevRows.forEach((row, i) => {
         const tr = document.createElement("tr");
         tr.className = i < 3 ? `rank-${i+1}` : "";
-        tr.innerHTML = `<td><span class="medal">${i+1}</span></td><td>${row.player}</td><td>${row.pts}</td>`;
+        tr.innerHTML = `<td><span class="medal">${i+1}</span></td><td>${row.player}</td><td>${row.pts}</td><td>${row.gamesWon}</td>`;
         pevBody.appendChild(tr);
       });
       if (pevRows.length === 0) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.colSpan = 3;
+        td.colSpan = 4;
         td.className = "muted";
         td.textContent = "Nessun dato";
         tr.appendChild(td);
@@ -796,9 +906,9 @@
       lines.push(`📊 Classifiche ${year} 📊`);
       lines.push("");
       lines.push("🏆 Vincitori Serate");
-      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
+      const pevRows = Object.entries(playerEveningWins).map(([player, pts]) => ({ player, pts, gamesWon: playerGamePoints[player] || 0 })).sort((a,b) => (b.pts - a.pts) || (b.gamesWon - a.gamesWon));
       if (pevRows.length === 0) lines.push("- Nessun dato");
-      else pevRows.forEach((row, i) => lines.push(`${i+1}. ${row.player}: ${row.pts}`));
+      else pevRows.forEach((row, i) => lines.push((i+1) + ". " + row.player + ": " + row.pts + " serate, " + row.gamesWon + " giochi vinti"));
       lines.push("");
       lines.push("🎮 Giochi Totali Vinti");
       const pgpRows = Object.entries(playerGamePoints).map(([player, pts]) => ({ player, pts })).sort((a,b) => b.pts - a.pts);
@@ -865,7 +975,7 @@
       if (pevRows.length === 0) ulWin.innerHTML = "<li>Nessun dato</li>";
       else pevRows.forEach((row, i) => {
         const li = document.createElement("li");
-        li.textContent = `${i+1}. ${row.player}: ${row.pts}`;
+        li.textContent = (i+1) + ". " + row.player + ": " + row.pts + " serate, " + row.gamesWon + " giochi vinti";
         ulWin.appendChild(li);
       });
       visualContainer.appendChild(ulWin);
@@ -1039,22 +1149,110 @@
       const d = parseDateInput(serata.date);
       const dateStr = d ? d.toLocaleDateString("it-IT") : serata.date;
       const lines = [];
-      lines.push(`🃏 Serata del ${dateStr}`);
-      lines.push(`${pairLabel(serata.pairA)} vs ${pairLabel(serata.pairB)}`);
-      lines.push(`Risultato: ${c.A} - ${c.B}`);
-      lines.push(`Giochi:`);
-      serata.games.forEach(g => {
-        const winPair = g.winner === "A" ? pairLabel(serata.pairA) : pairLabel(serata.pairB);
-        lines.push(`- ${g.name}: ${winPair}`);
+      lines.push("🃏 Serata del " + dateStr);
+      lines.push(pairLabel(serata.pairA) + " vs " + pairLabel(serata.pairB));
+      lines.push("Risultato: " + c.A + " - " + c.B);
+      lines.push("Giochi:");
+      (serata.games || []).forEach(g => {
+        const winPair = g.winner === "A"
+          ? pairLabel(serata.pairA)
+          : (g.winner === "B" ? pairLabel(serata.pairB) : "Da definire");
+        lines.push("- " + g.name + ": " + winPair);
       });
       if (w) {
         const winPair = w === "A" ? pairLabel(serata.pairA) : pairLabel(serata.pairB);
-        lines.push(`🏆 Vincitori: ${winPair}`);
+        lines.push("🏆 Vincitori: " + winPair);
+      } else if (!isSerataComplete(serata)) {
+        lines.push("⏳ Serata non completata: vittoria non ancora assegnata");
+      } else {
+        lines.push("⚖️ Serata terminata in pareggio");
       }
       const text = lines.join("\n");
       showReportDialog(text, text);
     }
 
+    function localDateStamp() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, "0");
+      return now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate());
+    }
+
+    function downloadTextFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    function exportBackupJSON() {
+      const serate = loadSerate();
+      downloadTextFile(
+        "serate-carte-backup-" + localDateStamp() + ".json",
+        JSON.stringify(serate, null, 2),
+        "application/json;charset=utf-8"
+      );
+      alert("Backup JSON esportato: " + serate.length + " serate.");
+    }
+
+    function csvCell(value) {
+      const text = String(value === null || value === undefined ? "" : value);
+      return String.fromCharCode(34) + text.replace(/"/g, '""') + String.fromCharCode(34);
+    }
+
+    function exportCSV() {
+      const serate = loadSerate().sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+      if (!serate.length) {
+        alert("Non ci sono serate da esportare.");
+        return;
+      }
+      const rows = [[
+        "ID serata", "Data", "Coppia A", "Coppia B", "Punti coppia A",
+        "Punti coppia B", "Gioco", "Vincitore del gioco", "Esito serata"
+      ]];
+      serate.forEach(serata => {
+        const games = Array.isArray(serata.games) && serata.games.length
+          ? serata.games
+          : [{ name: "", winner: null }];
+        const points = countPointsForSerata(serata);
+        const complete = isSerataComplete(serata);
+        const winner = complete ? eveningWinner(serata) : null;
+        const result = !complete
+          ? "Da completare"
+          : (winner === "A" ? "Vittoria coppia A" : (winner === "B" ? "Vittoria coppia B" : "Pareggio"));
+        games.forEach(game => {
+          const gameWinner = game.winner === "A"
+            ? pairLabel(serata.pairA)
+            : (game.winner === "B" ? pairLabel(serata.pairB) : "Da definire");
+          rows.push([
+            serata.id || "",
+            serata.date || "",
+            pairLabel(serata.pairA || []),
+            pairLabel(serata.pairB || []),
+            points.A,
+            points.B,
+            game.name || "",
+            gameWinner,
+            result
+          ]);
+        });
+      });
+      const csv = "\uFEFF" + rows.map(row => row.map(csvCell).join(";")).join("\r\n");
+      downloadTextFile(
+        "serate-carte-" + localDateStamp() + ".csv",
+        csv,
+        "text/csv;charset=utf-8"
+      );
+      alert("File CSV esportato: " + serate.length + " serate.");
+    }
+
+    document.getElementById("btn-export-json").addEventListener("click", exportBackupJSON);
+    document.getElementById("btn-export-csv").addEventListener("click", exportCSV);
     document.getElementById("btn-stats-report").addEventListener("click", openStatsReportModal);
 
     setActiveTab("home");
