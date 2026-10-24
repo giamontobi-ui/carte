@@ -753,17 +753,26 @@
       table.appendChild(tbody);
     }
 
-    function renderScoreStats(year) {
-      const list = filterByYear(loadSerate(), year);
-      const counts = { "7-0": 0, "6-1": 0, "5-2": 0, "4-3": 0 };
-      
+    function computeScoreCounts(list) {
+      const counts = {};
       list.forEach(s => {
         const c = countPointsForSerata(s);
         const max = Math.max(c.A, c.B);
         const min = Math.min(c.A, c.B);
         const key = `${max}-${min}`;
-        if (counts[key] !== undefined) counts[key]++;
+        counts[key] = (counts[key] || 0) + 1;
       });
+      // Mostra solamente i punteggi effettivamente presenti, ordinati dal più alto al più basso.
+      return Object.fromEntries(Object.entries(counts).sort(([scoreA], [scoreB]) => {
+        const [aMax, aMin] = scoreA.split("-").map(Number);
+        const [bMax, bMin] = scoreB.split("-").map(Number);
+        return (bMax - aMax) || (bMin - aMin);
+      }));
+    }
+
+    function renderScoreStats(year) {
+      const list = filterByYear(loadSerate(), year);
+      const counts = computeScoreCounts(list);
       
       const table = document.getElementById("table-scores");
       table.innerHTML = "";
@@ -784,14 +793,7 @@
       const { wl, playerEveningWins, playerGamePoints, perGamePlayers } = computePairTotalsByYear(year);
       
       const sessionsList = filterByYear(loadSerate(), year).sort((a,b) => a.date.localeCompare(b.date));
-      const scoreCounts = { "7-0": 0, "6-1": 0, "5-2": 0, "4-3": 0 };
-      sessionsList.forEach(s => {
-         const c = countPointsForSerata(s);
-         const max = Math.max(c.A, c.B);
-         const min = Math.min(c.A, c.B);
-         const key = `${max}-${min}`;
-         if (scoreCounts[key] !== undefined) scoreCounts[key]++;
-      });
+      const scoreCounts = computeScoreCounts(sessionsList);
 
       window.currentStatsData = { year, playerEveningWins, playerGamePoints, perGamePlayers, sessionsList, scoreCounts };
       
