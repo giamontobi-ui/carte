@@ -335,7 +335,7 @@
         serata.games.every(g => g.winner === "A" || g.winner === "B");
     }
     function eveningWinner(serata) {
-      if (!isSerataComplete(serata)) return null;
+      // Conta solo i giochi che hanno già un vincitore, anche se la serata è incompleta.
       const c = countPointsForSerata(serata);
       if (c.A > c.B) return "A";
       if (c.B > c.A) return "B";
